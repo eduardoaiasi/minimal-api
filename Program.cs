@@ -7,6 +7,8 @@ using MnimalApi.Infraestrutura.DB; // importante para reconhecer o DbContexto
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddScoped<IAdministradorServico, AdministradorServico>();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<DbContexto>(options =>
 {
@@ -15,6 +17,8 @@ builder.Services.AddDbContext<DbContexto>(options =>
 });
 
 var app = builder.Build();
+
+
 
 app.MapGet("/", () => "Hello World!");
 
@@ -25,5 +29,8 @@ app.MapPost("/login", ([FromBody]MinimalApi.DTOs.LoginDTO loginDTO, IAdministrad
     else
         return Results.Unauthorized();
 });
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.Run();
