@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using minimal_api.Dominio.DTOs;
 using minimal_api.Dominio.Entidades;
 using minimal_api.Dominio.Interfaces;
@@ -10,11 +9,11 @@ using MinimalApi.Dominio.Servicos;
 using MinimalApi.Infraestrutura.Interfaces;
 using MnimalApi.Infraestrutura.DB; // importante para reconhecer o DbContexto
 
-#region Builder
+#region builder
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddScoped<IVeiculoServico, VeiculoServico>();
-builder.Services.AddScoped<IAdministradorServico, AdministradorServico>();
+builder.Services.AddScoped<IAdministradorServico, AdministradorServico>(); 
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -26,8 +25,7 @@ builder.Services.AddDbContext<DbContexto>(options =>
 });
 
 var app = builder.Build();
-#endregion
-
+#endregion builder
 
 #region Home
 app.MapGet("/", () =>
@@ -45,9 +43,48 @@ app.MapGet("/", () =>
 
     return Results.Content(html, "text/html");
 });
-#endregion
+#endregion Home
 
-#region Veiculo 
+#region Veiculo
+ErrosValidacao validaDTO(VeiculoDTO veiculoDTO)
+{
+    var validacao = new ErrosValidacao
+    {
+        Mensagens = new List<string>()
+    };
+
+     if (string.IsNullOrEmpty(veiculoDTO.Nome))
+    {
+        validacao.Mensagens.Add("O nome não pode ser vazio");
+    }
+    if (string.IsNullOrEmpty(veiculoDTO.Marca))
+    {
+        validacao.Mensagens.Add("A marca não pode ser vazia");
+    }
+    if (veiculoDTO.Ano < 1900)
+    {
+        validacao.Mensagens.Add("O veiculo é muito antigo");
+    }
+    return validacao;
+}
+
+app.MapPost("/veiculos", ([FromBody]minimal_api.Dominio.DTOs.VeiculoDTO veiculoDTO, IVeiculoServico veiculoServico) =>
+{
+    var validacao = validaDTO(veiculoDTO);
+    if (validacao.Mensagens.Count > 0)
+    {
+        return Results.BadRequest(validacao);
+    }
+    var veiculo = new Veiculo
+    {
+        Nome = veiculoDTO.Nome,
+        Marca = veiculoDTO.Marca,
+        Ano = veiculoDTO.Ano
+    };
+    veiculoServico.Incluir(veiculo);
+    return Results.Created($"/veiculo/{veiculo.Id}", veiculo);
+}).WithTags("Veiculo");
+
 app.MapGet("/veiculos", ([FromQuery] int? pagina, IVeiculoServico veiculoServico) =>
 {
     var veiculos = veiculoServico.Todos(pagina);
@@ -93,7 +130,7 @@ app.MapDelete("/veiculos/{id}", ([FromRoute] int id, IVeiculoServico veiculoServ
 
     return Results.NoContent();
 }).WithTags("Veiculo");
-#endregion
+#endregion Veiculo
 
 #region Administrador
 app.MapPost("/administrador/login", ([FromBody]MinimalApi.DTOs.LoginDTO loginDTO, IAdministradorServico administradorServico) =>
@@ -104,49 +141,6 @@ app.MapPost("/administrador/login", ([FromBody]MinimalApi.DTOs.LoginDTO loginDTO
         return Results.Unauthorized();
 }).WithTags("Administrador");
 #endregion
-
-#region Veiculos
-ErrosValidacao validaDTO(VeiculoDTO veiculoDTO)
-{
-    var validacao = new ErrosValidacao
-    {
-        Mensagens = new List<string>()
-    };
-
-     if (string.IsNullOrEmpty(veiculoDTO.Nome))
-    {
-        validacao.Mensagens.Add("O nome não pode ser vazio");
-    }
-    if (string.IsNullOrEmpty(veiculoDTO.Marca))
-    {
-        validacao.Mensagens.Add("A marca não pode ser vazia");
-    }
-    if (veiculoDTO.Ano < 1900)
-    {
-        validacao.Mensagens.Add("O veiculo é muito antigo");
-    }
-    return validacao;
-}
-
-
-app.MapPost("/veiculos", ([FromBody]minimal_api.Dominio.DTOs.VeiculoDTO veiculoDTO, IVeiculoServico veiculoServico) =>
-{
-    var validacao = validaDTO(veiculoDTO);
-    if (validacao.Mensagens.Count > 0)
-    {
-        return Results.BadRequest(validacao);
-    }
-    var veiculo = new Veiculo
-    {
-        Nome = veiculoDTO.Nome,
-        Marca = veiculoDTO.Marca,
-        Ano = veiculoDTO.Ano
-    };
-    veiculoServico.Incluir(veiculo);
-    return Results.Created($"/veiculo/{veiculo.Id}", veiculo);
-}).WithTags("Veiculo");
-#endregion
-
 
 #region App
 app.UseSwagger();
