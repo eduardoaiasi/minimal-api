@@ -5,15 +5,11 @@ using System.Threading.Tasks;
 
 namespace minimal_api.Dominio.DTOs
 {
-     public record ValidaDTO
+    public record AdministradorDTO
     {
-        public string Nome { get; set; } = default!;
-        public string Marca { get; set; } = default!;
-        public int Ano { get; set; } = default!;
-
         public string Email { get; set; } = default!;
         public string Senha { get; set; } = default!;
-        
 
+        public string Perfil { get; set; } = default!;
     }
 }

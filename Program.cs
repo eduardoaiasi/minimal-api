@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.VisualBasic;
 using minimal_api.Dominio.DTOs;
 using minimal_api.Dominio.Entidades;
 using minimal_api.Dominio.Interfaces;
 using minimal_api.Dominio.ModelViews;
 using minimal_api.Dominio.Servicos;
+using MinimalApi.Dominio.Entidades;
 using MinimalApi.Dominio.Servicos;
 using MinimalApi.Infraestrutura.Interfaces;
 using MnimalApi.Infraestrutura.DB; // importante para reconhecer o DbContexto
@@ -53,7 +55,7 @@ ErrosValidacao validaDTO(VeiculoDTO veiculoDTO)
         Mensagens = new List<string>()
     };
 
-     if (string.IsNullOrEmpty(veiculoDTO.Nome))
+    if (string.IsNullOrEmpty(veiculoDTO.Nome))
     {
         validacao.Mensagens.Add("O nome não pode ser vazio");
     }
@@ -133,12 +135,98 @@ app.MapDelete("/veiculos/{id}", ([FromRoute] int id, IVeiculoServico veiculoServ
 #endregion Veiculo
 
 #region Administrador
-app.MapPost("/administrador/login", ([FromBody]MinimalApi.DTOs.LoginDTO loginDTO, IAdministradorServico administradorServico) =>
+
+ErrosValidacao validaAdmDTO(AdministradorDTO administradorDTO)
+{
+    var validacao = new ErrosValidacao
+    {
+        Mensagens = new List<string>()
+    };
+
+    if (string.IsNullOrEmpty(administradorDTO.Email))
+    {
+        validacao.Mensagens.Add("O email não pode ser vazio!");
+    }
+    if (string.IsNullOrEmpty(administradorDTO.Senha))
+    {
+        validacao.Mensagens.Add("A senha não pode ser vazia");
+    }   
+    return validacao;
+}
+
+app.MapPost("/administrador/login", ([FromBody] MinimalApi.DTOs.LoginDTO loginDTO, IAdministradorServico administradorServico) =>
 {
     if (administradorServico.Login(loginDTO) != null)
         return Results.Ok("Login successful");
     else
         return Results.Unauthorized();
+}).WithTags("Administrador");
+
+app.MapPost("/administrador/cadastro", ([FromBody] minimal_api.Dominio.DTOs.AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
+{
+    var validacao = validaAdmDTO(administradorDTO);
+    if(validacao.Mensagens.Count > 0)
+    {
+        return Results.BadRequest(validacao);
+    }
+
+    var administrador = new Administrador
+    {
+        Email = administradorDTO.Email,
+        Senha = administradorDTO.Senha,
+        Perfil = administradorDTO.Perfil
+    };
+
+    administradorServico.Incluir(administrador);
+
+    // 🔹 Corrigido o caminho (tinha um erro de digitação em "administardor")
+    return Results.Created($"/administrador/{administrador.Id}", administrador);
+})
+.WithTags("Administrador");
+
+app.MapPut("/administrador/Atualizar/{id}", ([FromRoute] int id, AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
+{
+    var validacao = validaAdmDTO(administradorDTO);
+
+    if(validacao.Mensagens.Count > 0)
+    {
+        return Results.BadRequest(validacao);
+    }
+
+    var administrador = administradorServico.BuscarPorId(id);
+    if (administrador == null) return Results.NotFound();
+
+    administrador.Email = administradorDTO.Email;
+    administrador.Senha = administradorDTO.Senha;
+    administrador.Perfil = administradorDTO.Perfil;
+   
+    administradorServico.Atualizar(administrador);
+    
+    return Results.Ok(administrador);
+}).WithTags("Administrador");
+
+app.MapGet("/administrador/pegar/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
+{
+    var administrador = administradorServico.BuscarPorId(id);
+    if (administrador == null) return Results.BadRequest();
+
+    return Results.Ok(administrador);
+}).WithTags("Administrador");
+
+app.MapGet("/administrador/listar", ([FromQuery] int? pagina, IAdministradorServico administradorServico) =>
+{
+    var administradores = administradorServico.Todos(pagina);
+    return Results.Ok(administradores);
+}).WithTags("Administrador");
+
+app.MapDelete("/administrador/delete/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
+{
+    var administrador = administradorServico.BuscarPorId(id);
+    if (administrador == null) return Results.BadRequest();
+
+    administradorServico.Remover(administrador);
+
+    return Results.Ok(administrador);
 }).WithTags("Administrador");
 #endregion
 
