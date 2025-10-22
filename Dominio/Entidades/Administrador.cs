@@ -24,4 +24,4 @@ namespace MinimalApi.Dominio.Entidades;
     [Required]
     [StringLength(50)]
     public string Perfil { get; set; } = default!;
-    }
+}

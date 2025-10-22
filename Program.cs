@@ -1,10 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
-using System.Reflection.Metadata.Ecma335;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -22,32 +20,37 @@ using MnimalApi.Infraestrutura.DB; // importante para reconhecer o DbContexto
 #region builder
 var builder = WebApplication.CreateBuilder(args);
 
-var key = builder.Configuration.GetSection("Jwt").ToString();
-if (string.IsNullOrEmpty(key)) key = "1234";
+// ✅ Leitura correta da chave JWT
+var key = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrEmpty(key))
+    key = "MinhaChaveSuperSecretaParaJwtComMaisDe32Caracteres123"; // fallback dev
 
-
-builder.Services.AddAuthentication(option =>
+// ✅ Configuração de autenticação JWT
+builder.Services.AddAuthentication(options =>
 {
-    option.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    option.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(option =>
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
 {
-    option.TokenValidationParameters = new TokenValidationParameters
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateLifetime = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
         ValidateIssuer = false,
         ValidateAudience = false,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+        ClockSkew = TimeSpan.Zero
     };
 });
 
 builder.Services.AddAuthorization();
 
-
-
+// ✅ Injeções de dependência
 builder.Services.AddScoped<IVeiculoServico, VeiculoServico>();
-builder.Services.AddScoped<IAdministradorServico, AdministradorServico>(); 
- 
+builder.Services.AddScoped<IAdministradorServico, AdministradorServico>();
+
+// ✅ Swagger configurado com autenticação JWT
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -58,7 +61,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Insira o token JWT desta maneira: Bearer {Seu Token}"
+        Description = "Insira o token JWT aqui:"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -71,13 +74,13 @@ builder.Services.AddSwaggerGen(options =>
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
-            } ,
-
-            new string[] {}
-        }   
+            },
+            Array.Empty<string>()
+        }
     });
 });
 
+// ✅ Banco de dados
 builder.Services.AddDbContext<DbContexto>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("MySql");
@@ -106,80 +109,75 @@ app.MapGet("/", () =>
 #endregion Home
 
 #region Veiculo
-ErrosValidacao validaDTO(VeiculoDTO veiculoDTO)
+ErrosValidacao ValidaDTO(VeiculoDTO veiculoDTO)
 {
-    var validacao = new ErrosValidacao
-    {
-        Mensagens = new List<string>()
-    };
+    var validacao = new ErrosValidacao { Mensagens = new List<string>() };
 
     if (string.IsNullOrEmpty(veiculoDTO.Nome))
-    {
         validacao.Mensagens.Add("O nome não pode ser vazio");
-    }
+
     if (string.IsNullOrEmpty(veiculoDTO.Marca))
-    {
         validacao.Mensagens.Add("A marca não pode ser vazia");
-    }
+
     if (veiculoDTO.Ano < 1900)
-    {
-        validacao.Mensagens.Add("O veiculo é muito antigo");
-    }
+        validacao.Mensagens.Add("O veículo é muito antigo");
+
     return validacao;
 }
 
-app.MapPost("/veiculos", ([FromBody]minimal_api.Dominio.DTOs.VeiculoDTO veiculoDTO, IVeiculoServico veiculoServico) =>
+app.MapPost("/veiculos", ([FromBody] VeiculoDTO veiculoDTO, IVeiculoServico veiculoServico) =>
 {
-    var validacao = validaDTO(veiculoDTO);
-    if (validacao.Mensagens.Count > 0)
-    {
+    var validacao = ValidaDTO(veiculoDTO);
+    if (validacao.Mensagens.Any())
         return Results.BadRequest(validacao);
-    }
+
     var veiculo = new Veiculo
     {
         Nome = veiculoDTO.Nome,
         Marca = veiculoDTO.Marca,
         Ano = veiculoDTO.Ano
     };
+
     veiculoServico.Incluir(veiculo);
     return Results.Created($"/veiculo/{veiculo.Id}", veiculo);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm,Editor"}).WithTags("Veiculo");
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm,Editor" })
+.WithTags("Veículo");
 
 app.MapGet("/veiculos", ([FromQuery] int? pagina, IVeiculoServico veiculoServico) =>
 {
     var veiculos = veiculoServico.Todos(pagina);
     return Results.Ok(veiculos);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Veiculo");
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Veículo");
 
 app.MapGet("/veiculos/{id}", ([FromRoute] int id, IVeiculoServico veiculoServico) =>
 {
     var veiculo = veiculoServico.BuscarPorId(id);
-
-    if (veiculo == null) return Results.NotFound();
-
-    return Results.Ok(veiculo);
-
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Veiculo");
+    return veiculo is null ? Results.NotFound() : Results.Ok(veiculo);
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Veículo");
 
 app.MapPut("/veiculos/{id}", ([FromRoute] int id, VeiculoDTO veiculoDTO, IVeiculoServico veiculoServico) =>
 {
     var veiculo = veiculoServico.BuscarPorId(id);
     if (veiculo == null) return Results.NotFound();
 
-    var validacao = validaDTO(veiculoDTO);
-    if (validacao.Mensagens.Count > 0)
-    {
+    var validacao = ValidaDTO(veiculoDTO);
+    if (validacao.Mensagens.Any())
         return Results.BadRequest(validacao);
-    }
 
     veiculo.Nome = veiculoDTO.Nome;
     veiculo.Marca = veiculoDTO.Marca;
     veiculo.Ano = veiculoDTO.Ano;
 
     veiculoServico.Atualizar(veiculo);
-
     return Results.Ok(veiculo);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Veiculo");
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Veículo");
 
 app.MapDelete("/veiculos/{id}", ([FromRoute] int id, IVeiculoServico veiculoServico) =>
 {
@@ -187,77 +185,73 @@ app.MapDelete("/veiculos/{id}", ([FromRoute] int id, IVeiculoServico veiculoServ
     if (veiculo == null) return Results.NotFound();
 
     veiculoServico.Remover(veiculo);
-
     return Results.NoContent();
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Veiculo");
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Veículo");
 #endregion Veiculo
 
 #region Administrador
 string GerarTokenJwt(Administrador administrador)
 {
     if (string.IsNullOrEmpty(key)) return string.Empty;
-    
-        var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
+
+    var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
     var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
-    var claims = new List<Claim>()
+    var claims = new List<Claim>
     {
-        new Claim("Email", administrador.Email),
-        new Claim("Perfil", administrador.Perfil),
-        new Claim(ClaimTypes.Role, administrador.Perfil),
+        new Claim(ClaimTypes.Email, administrador.Email),
+        new Claim(ClaimTypes.Role, administrador.Perfil)
     };
+
     var token = new JwtSecurityToken(
-    claims: claims,
-    expires: DateTime.Now.AddDays(1),
-    signingCredentials: credentials
-);
+        expires: DateTime.UtcNow.AddHours(2),
+        claims: claims,
+        signingCredentials: credentials
+    );
+
     return new JwtSecurityTokenHandler().WriteToken(token);
 }
 
-ErrosValidacao validaAdmDTO(AdministradorDTO administradorDTO)
+ErrosValidacao ValidaAdmDTO(AdministradorDTO administradorDTO)
 {
-    var validacao = new ErrosValidacao
-    {
-        Mensagens = new List<string>()
-    };
+    var validacao = new ErrosValidacao { Mensagens = new List<string>() };
 
     if (string.IsNullOrEmpty(administradorDTO.Email))
-    {
         validacao.Mensagens.Add("O email não pode ser vazio!");
-    }
+
     if (string.IsNullOrEmpty(administradorDTO.Senha))
-    {
-        validacao.Mensagens.Add("A senha não pode ser vazia");
-    }   
+        validacao.Mensagens.Add("A senha não pode ser vazia!");
+
+    if (string.IsNullOrEmpty(administradorDTO.Perfil))
+        validacao.Mensagens.Add("O perfil não pode ser vazio!");
+
     return validacao;
 }
 
 app.MapPost("/administrador/login", ([FromBody] MinimalApi.DTOs.LoginDTO loginDTO, IAdministradorServico administradorServico) =>
 {
     var adm = administradorServico.Login(loginDTO);
-
-    if (adm != null) 
-    {
-        string token = GerarTokenJwt(adm);
-
-        return Results.Ok(new Administradorlogado
-        {
-            Email = adm.Email,
-            Perfil = adm.Perfil,
-            Token = token
-        });
-    }
-    else
+    if (adm == null)
         return Results.Unauthorized();
-}).AllowAnonymous().WithTags("Administrador");
 
-app.MapPost("/administrador/cadastro", ([FromBody] minimal_api.Dominio.DTOs.AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
-{
-    var validacao = validaAdmDTO(administradorDTO);
-    if(validacao.Mensagens.Count > 0)
+    var token = GerarTokenJwt(adm);
+    return Results.Ok(new Administradorlogado
     {
+        Email = adm.Email,
+        Perfil = adm.Perfil,
+        Token = token
+    });
+})
+.AllowAnonymous()
+.WithTags("Administrador");
+
+app.MapPost("/administrador/cadastro", ([FromBody] AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
+{
+    var validacao = ValidaAdmDTO(administradorDTO);
+    if (validacao.Mensagens.Any())
         return Results.BadRequest(validacao);
-    }
 
     var administrador = new Administrador
     {
@@ -267,22 +261,16 @@ app.MapPost("/administrador/cadastro", ([FromBody] minimal_api.Dominio.DTOs.Admi
     };
 
     administradorServico.Incluir(administrador);
-
-    // 🔹 Corrigido o caminho (tinha um erro de digitação em "administardor")
-    return Results.Created($"/administrador/{administrador.Id}", administrador);
+    return Results.Created($"/administrador/{administrador.Id}", new { administrador.Email, administrador.Perfil });
 })
-.RequireAuthorization()
-.RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
 .WithTags("Administrador");
 
-app.MapPut("/administrador/Atualizar/{id}", ([FromRoute] int id, AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
+app.MapPut("/administrador/atualizar/{id}", ([FromRoute] int id, AdministradorDTO administradorDTO, IAdministradorServico administradorServico) =>
 {
-    var validacao = validaAdmDTO(administradorDTO);
-
-    if(validacao.Mensagens.Count > 0)
-    {
+    var validacao = ValidaAdmDTO(administradorDTO);
+    if (validacao.Mensagens.Any())
         return Results.BadRequest(validacao);
-    }
 
     var administrador = administradorServico.BuscarPorId(id);
     if (administrador == null) return Results.NotFound();
@@ -290,43 +278,48 @@ app.MapPut("/administrador/Atualizar/{id}", ([FromRoute] int id, AdministradorDT
     administrador.Email = administradorDTO.Email;
     administrador.Senha = administradorDTO.Senha;
     administrador.Perfil = administradorDTO.Perfil;
-   
-    administradorServico.Atualizar(administrador);
-    
-    return Results.Ok(administrador);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Administrador");
 
-app.MapGet("/administrador/pegar/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
+    administradorServico.Atualizar(administrador);
+    return Results.Ok(new { administrador.Email, administrador.Perfil });
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Administrador");
+
+app.MapGet("/administrador/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
 {
     var administrador = administradorServico.BuscarPorId(id);
-    if (administrador == null) return Results.BadRequest();
-
-    return Results.Ok(administrador);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Administrador");
+    return administrador == null ? Results.NotFound() : Results.Ok(administrador);
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Administrador");
 
 app.MapGet("/administrador/listar", ([FromQuery] int? pagina, IAdministradorServico administradorServico) =>
 {
     var administradores = administradorServico.Todos(pagina);
     return Results.Ok(administradores);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Administrador");
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Administrador");
 
-app.MapDelete("/administrador/delete/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
+app.MapDelete("/administrador/{id}", ([FromRoute] int id, IAdministradorServico administradorServico) =>
 {
     var administrador = administradorServico.BuscarPorId(id);
-    if (administrador == null) return Results.BadRequest();
+    if (administrador == null) return Results.NotFound();
 
     administradorServico.Remover(administrador);
-
-    return Results.Ok(administrador);
-}).RequireAuthorization().RequireAuthorization(new AuthorizeAttribute {Roles = "Adm"}).WithTags("Administrador");
+    return Results.NoContent();
+})
+.RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
+.WithTags("Administrador");
 #endregion
 
 #region App
-app.UseSwagger();
-app.UseSwaggerUI();
-
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.UseSwagger();
+app.UseSwaggerUI();
+
 app.Run();
+
 #endregion
