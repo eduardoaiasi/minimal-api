@@ -27,13 +27,13 @@ namespace MinimalApi
             Configuration = configuration;
         }
 
-        // 🔧 Configuração de serviços e dependências
+        //Configuração de serviços e dependências
         public void ConfigureServices(IServiceCollection services)
         {
-            // 🔑 Configuração da chave JWT
+            //Configuração da chave JWT
             var key = Configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaParaJwtComMaisDe32Caracteres123";
 
-            // ✅ Autenticação JWT
+            //Autenticação JWT
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -54,18 +54,18 @@ namespace MinimalApi
 
             services.AddAuthorization();
 
-            // ✅ Injeção de dependência
+            //Injeção de dependência
             services.AddScoped<IVeiculoServico, VeiculoServico>();
             services.AddScoped<IAdministradorServico, AdministradorServico>();
 
-            // ✅ Configuração do banco de dados MySQL
+            //Configuração do banco de dados MySQL
             services.AddDbContext<DbContexto>(options =>
             {
                 var connectionString = Configuration.GetConnectionString("MySql");
                 options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString));
             });
 
-            // ✅ Swagger com suporte a autenticação JWT
+            //Swagger com suporte a autenticação JWT
             services.AddEndpointsApiExplorer();
             services.AddSwaggerGen(options =>
             {
@@ -96,7 +96,7 @@ namespace MinimalApi
             });
         }
 
-        // ⚙️ Configuração do pipeline e rotas
+        //Configuração do pipeline e rotas
         public void Configure(IApplicationBuilder app, IHostEnvironment env, IConfiguration configuration)
         {
             if (env.IsDevelopment())
@@ -109,15 +109,15 @@ namespace MinimalApi
             app.UseAuthentication();
             app.UseAuthorization();
 
-            // ⚙️ Cria escopo para acessar serviços dentro do pipeline
+            //Cria escopo para acessar serviços dentro do pipeline
             var webApp = app as WebApplication;
 
             if (webApp == null)
                 throw new InvalidOperationException("Configure deve ser chamado com WebApplication.");
 
-            var key = configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaParaJwtComMaisDe32Caracteres123";
+            var key = configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaParaJwtComMaisDe32Caracteres123";//Essa chave é a mesma que no appsettings.json, pode ser qualquer coisa
 
-            // 🔐 Função auxiliar: gerar token JWT
+            //Função auxiliar: gerar token JWT
             string GerarTokenJwt(Administrador administrador)
             {
                 var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
@@ -138,7 +138,7 @@ namespace MinimalApi
                 return new JwtSecurityTokenHandler().WriteToken(token);
             }
 
-            // ✅ Função auxiliar para validar AdministradorDTO
+            //Função auxiliar para validar AdministradorDTO
             ErrosValidacao ValidaAdmDTO(AdministradorDTO administradorDTO)
             {
                 var validacao = new ErrosValidacao { Mensagens = new List<string>() };
@@ -155,7 +155,7 @@ namespace MinimalApi
                 return validacao;
             }
 
-            // ✅ Função auxiliar para validar VeiculoDTO
+            //Função auxiliar para validar VeiculoDTO
             ErrosValidacao ValidaVeiculoDTO(VeiculoDTO veiculoDTO)
             {
                 var validacao = new ErrosValidacao { Mensagens = new List<string>() };
@@ -172,10 +172,7 @@ namespace MinimalApi
                 return validacao;
             }
 
-            // ===============================
-            // 🧠 ROTAS ADMINISTRADOR
-            // ===============================
-
+            #region Rotas Administrador
             webApp.MapPost("/administrador/login", (
                 [FromBody] MinimalApi.DTOs.LoginDTO loginDTO,
                 IAdministradorServico administradorServico) =>
@@ -270,11 +267,9 @@ namespace MinimalApi
             })
             .RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
             .WithTags("Administrador");
-
-            // ===============================
-            // 🚗 ROTAS VEÍCULO
-            // ===============================
-
+            #endregion
+            
+            #region Rotas Veículo
             webApp.MapPost("/veiculos", (
                 [FromBody] VeiculoDTO veiculoDTO,
                 IVeiculoServico veiculoServico) =>
@@ -350,6 +345,7 @@ namespace MinimalApi
             })
             .RequireAuthorization(new AuthorizeAttribute { Roles = "Adm" })
             .WithTags("Veículo");
+            #endregion
 
             // ✅ Rota padrão
             webApp.MapGet("/", () => "API rodando em .NET 9 🚀");
