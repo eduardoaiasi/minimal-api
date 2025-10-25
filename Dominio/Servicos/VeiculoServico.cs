@@ -27,7 +27,6 @@ namespace minimal_api.Dominio.Servicos
         public Veiculo? BuscarPorId(int id)
         {
             return _contexto.Veiculos.Find(id);
-          //  return _contexto.Veiculos.Where(v => v.Id == id).FirstOrDefault();
         }
 
         public void Incluir(Veiculo veiculo)
