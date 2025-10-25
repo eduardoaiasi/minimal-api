@@ -94,6 +94,7 @@
           },
           "centralPackageVersions": {
             "Microsoft.AspNetCore.Authentication.JwtBearer": "9.0.10",
+            "Microsoft.AspNetCore.Mvc.Testing": "9.0.10",
             "Microsoft.EntityFrameworkCore": "9.0.0",
             "Microsoft.EntityFrameworkCore.Design": "9.0.0",
             "Microsoft.EntityFrameworkCore.Tools": "10.0.0-rc.2.25502.107",

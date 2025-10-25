@@ -3570,11 +3570,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\C#\\5_Minimal-api\\minimal-api\\minimal-api.csproj",
+      "projectUniqueName": "d:\\C#\\5_Minimal-api\\minimal-api\\minimal-api.csproj",
       "projectName": "minimal-api",
-      "projectPath": "D:\\C#\\5_Minimal-api\\minimal-api\\minimal-api.csproj",
+      "projectPath": "d:\\C#\\5_Minimal-api\\minimal-api\\minimal-api.csproj",
       "packagesPath": "C:\\Users\\Eduardo\\.nuget\\packages\\",
-      "outputPath": "D:\\C#\\5_Minimal-api\\minimal-api\\obj\\",
+      "outputPath": "d:\\C#\\5_Minimal-api\\minimal-api\\obj\\",
       "projectStyle": "PackageReference",
       "centralPackageVersionsManagementEnabled": true,
       "fallbackFolders": [
@@ -3657,6 +3657,7 @@
         },
         "centralPackageVersions": {
           "Microsoft.AspNetCore.Authentication.JwtBearer": "9.0.10",
+          "Microsoft.AspNetCore.Mvc.Testing": "9.0.10",
           "Microsoft.EntityFrameworkCore": "9.0.0",
           "Microsoft.EntityFrameworkCore.Design": "9.0.0",
           "Microsoft.EntityFrameworkCore.Tools": "10.0.0-rc.2.25502.107",
